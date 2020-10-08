@@ -1,4 +1,4 @@
-# chat
+# ciganskiy-chat
 
 ## Project setup
 ```
