@@ -1,8 +1,8 @@
 <template><div class="chat-box-body chat-box-flex-item">
     <div class="content">
         <div class="messages-container">
-            <div class="messages">
-                <div class="message" v-for="(message, i) in messages">
+            <div id="messages" class="messages">
+                <div class="message" v-for="message in messages">
                     <div class="username-container">
                         <p class="message-username">
                             {{message.username}}

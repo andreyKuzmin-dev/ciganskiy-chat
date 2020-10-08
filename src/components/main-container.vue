@@ -12,8 +12,7 @@
                                 v-if="views_state['login-selector']"></login-selector>
                 <room-selector @roomSelected="setRoom"
                                v-if="views_state['room-selector']"></room-selector>
-                <room-content @roomClosed="closeRoom"
-                              v-if="views_state['room-content']"
+                <room-content v-if="views_state['room-content']"
                               :room="room ? room : ''"
                               :online_members="online_members"
                               :messages="messages ? messages : []"
@@ -54,8 +53,6 @@
                 online_members: {
                         stranger: {isOnline: true, timeout: false}
                     },
-                history: [],
-
 
                 statuses: {
                     isConnected: false,
@@ -75,6 +72,75 @@
             }
         },
         methods: {
+            setLogin({login}) {
+                this.username = login;
+                this.online_members = {};
+                this.online_members[login] = {isOnline: true, timeout: false};
+                this.views_state["login-selector"] = false;
+                this.views_state["room-selector"] = true;
+                this._connect();
+            },
+            setRoom({room, create}) {
+                this.room = room;
+                if (create) {
+                    const text = this._getRandomMessageText('create');
+                    if (text) {
+                        this.sendMessage({text})
+                    }
+                } else {
+                    this._getHistory();
+                }
+                this.views_state["room-selector"] = false;
+                this.views_state["room-header"] = true;
+                this.views_state["room-content"] = true;
+                this.views_state["message-sender"] = true;
+            },
+            _getRandomMessageText(event) {
+                switch (event) {
+                    case 'create':
+                        const messages = this.createRoomMessages;
+                        const index = Math.round((Math.random()*messages.length));
+                        return messages[index];
+                        break;
+                    default:
+                    return false;
+                }
+            },
+            closeRoom() {
+                this.room = '';
+                this.online_members = {};
+                this.online_members[this.username] = {isOnline: true, timeout: false};
+                this.messages = [];
+                this.views_state["room-content"] = false;
+                this.views_state["message-sender"] = false;
+                this.views_state["room-header"] = false;
+                this.views_state["room-selector"] = true;
+            },
+            async sendMessage({text}) {
+                const msg = {
+                    room: this.room,
+                    text,
+                };
+                this.ws.send(JSON.stringify(msg));
+            },
+            async _getHistory() {
+                fetch(`https://nane.tada.team/api/rooms/${this.room}/history`)
+                    .then(response => response.json())
+                    .then(({result}) => {
+                        this.messages = [];
+                        if (Array.isArray(result)) {
+                            result.map(el=>{
+                                if (el.sender && el.sender.username && el.text) {
+                                    this.messages.push({
+                                        username: el.sender.username,
+                                        text: el.text,
+                                    })
+                                }
+                            });
+                            this._scrollChatToBottom()
+                        }
+                    })
+            },
             _connect() {
                 let url = 'wss://nane.tada.team/ws?username=' + this.username;
                 this.ws = new WebSocket(url);
@@ -115,86 +181,17 @@
                     isOnline: true,
                     timeout: false
                 };
-                this.online_members[username].timeout = setTimeout(()=>{
+                this.online_members[username].timeout = setTimeout(function () {
                     this.online_members[username].isOnline = false;
                     if (this.$refs.content) {
                         this.$refs.content.$forceUpdate()
                     }
-                },300000)  // 5 minutes
-            },
-            setLogin({login}) {
-                this.username = login;
-                this.online_members = {};
-                this.online_members[login] = {isOnline: true, timeout: false};
-                this.views_state["login-selector"] = false;
-                this.views_state["room-selector"] = true;
-                this._connect();
-            },
-            setRoom({room, create}) {
-                this.room = room;
-                if (create) {
-                    const text = this._getRandomMessageText('create');
-                    if (text) {
-                        this.sendMessage({text})
-                    }
-                } else {
-                    this.getHistory();
-                }
-                this.views_state["room-selector"] = false;
-                this.views_state["room-content"] = true;
-                this.views_state["message-sender"] = true;
-                this.views_state["room-header"] = true;
-            },
-            _getRandomMessageText(event) {
-                switch (event) {
-                    case 'create':
-                        const messages = this.createRoomMessages;
-                        const index = Math.round((Math.random()*messages.length));
-                        return messages[index];
-                        break;
-                    default:
-                    return false;
-                }
-            },
-            closeRoom() {
-                this.room = '';
-                this.history = [];
-                this.online_members = {};
-                this.online_members[this.username] = {isOnline: true, timeout: false};
-                this.messages = [];
-                this.views_state["room-content"] = false;
-                this.views_state["message-sender"] = false;
-                this.views_state["room-header"] = false;
-                this.views_state["room-selector"] = true;
-            },
-            async sendMessage({text}) {
-                const msg = {
-                    room: this.room,
-                    text,
-                };
-                this.ws.send(JSON.stringify(msg));
-            },
-            async getHistory() {
-                fetch(`https://nane.tada.team/api/rooms/${this.room}/history`)
-                    .then(response => response.json())
-                    .then(({result}) => {
-                        this.messages = [];
-                        if (Array.isArray(result)) {
-                            result.map(el=>{
-                                if (el.sender && el.sender.username && el.text) {
-                                    this.messages.push({
-                                        username: el.sender.username,
-                                        text: el.text,
-                                    })
-                                }
-                            });
-                            this._scrollChatToBottom()
-                        }
-                    })
+                }.bind(this),300000)  // 5 minutes
             },
             _scrollChatToBottom() {
-                location.href = '#bottom';
-                setTimeout(()=>{location.hash = '';},1);
+                const messages = document.getElementById('messages');
+                if (!messages) return;
+                setTimeout(()=>{messages.scrollTop = messages.scrollHeight},1);
             }
         }
     }
